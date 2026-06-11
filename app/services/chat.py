@@ -88,7 +88,10 @@ def process_chat_message(
             sources.append({
                 "title": event.title,
                 "url": event.url,
-                "published_at": event.published_at.isoformat(),
+                "source": event.source,
+                "published_at": event.published_at,
+                "correlation_score": float(score.correlation_score),
+                "correlation_tier": score.correlation_tier,
             })
 
         context_parts.append(movement_info)

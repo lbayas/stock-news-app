@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from datetime import date
+from datetime import date, datetime
 
 
 class ChatFilters(BaseModel):
@@ -24,11 +24,20 @@ class ChatRequest(BaseModel):
     }
 
 
+class ChatSource(BaseModel):
+    title: str
+    url: str
+    source: str | None = None
+    published_at: datetime
+    correlation_score: float
+    correlation_tier: str
+
+
 class ChatResponse(BaseModel):
     ticker: str = Field(..., description="Stock ticker symbol")
     message: str = Field(..., description="Original user message")
     response: str = Field(..., description="AI-generated response grounded in data")
-    sources: list[dict] = Field(default=[], description="News sources cited in response")
+    sources: list[ChatSource] = Field(default=[], description="News sources cited in response")
 
     model_config = {
         "json_schema_extra": {

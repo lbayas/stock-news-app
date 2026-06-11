@@ -1,7 +1,7 @@
 """Tests for chat endpoint."""
 import pytest
 from unittest.mock import patch, Mock
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 
 
@@ -12,6 +12,12 @@ def test_chat_symbol_not_found(client):
         json={"ticker": "FAKE", "message": "Why did it drop?"},
     )
     assert response.status_code == 404
+
+
+def test_chat_validation_missing_fields(client, sample_symbol):
+    """Test missing required fields return 422."""
+    assert client.post("/api/v1/chat", json={"message": "Why?"}).status_code == 422
+    assert client.post("/api/v1/chat", json={"ticker": "AAPL"}).status_code == 422
 
 
 def test_chat_no_data(client, sample_symbol):
@@ -131,7 +137,11 @@ def test_chat_with_attributions(client, db_session):
     data = response.json()
     assert data["ticker"] == "TEST"
     assert len(data["sources"]) > 0
-    assert data["sources"][0]["title"] == "Test Corp earnings beat expectations"
+    source = data["sources"][0]
+    assert source["title"] == "Test Corp earnings beat expectations"
+    assert source["source"] == "TestNews"
+    assert source["correlation_score"] == 0.85
+    assert source["correlation_tier"] == "high"
 
 
 def test_chat_llm_response(client, sample_symbol, sample_company_profile, sample_movement):
@@ -158,6 +168,89 @@ def test_chat_llm_response(client, sample_symbol, sample_company_profile, sample
     assert response.status_code == 200
     data = response.json()
     assert "market conditions" in data["response"]
+
+
+def test_chat_llm_response_full_schema(
+    client,
+    sample_symbol,
+    sample_company_profile,
+    sample_movement,
+    sample_news_event,
+    sample_event_score,
+    sample_attribution,
+):
+    """Test LLM path returns full response schema including message and sources."""
+    mock_response = Mock()
+    mock_response.choices = [Mock(message=Mock(content="The stock moved due to market conditions."))]
+
+    with patch("app.services.chat.get_settings") as mock_settings:
+        mock_settings.return_value.openai_api_key = "test-key"
+        with patch("app.services.chat.OpenAI") as mock_openai:
+            mock_client = Mock()
+            mock_client.chat.completions.create.return_value = mock_response
+            mock_openai.return_value = mock_client
+
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "ticker": "AAPL",
+                    "message": "What happened?",
+                    "filters": {"start_date": "2024-01-01", "end_date": "2024-12-31"},
+                },
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ticker"] == "AAPL"
+    assert data["message"] == "What happened?"
+    assert "market conditions" in data["response"]
+    assert len(data["sources"]) == 1
+    assert data["sources"][0]["title"] == "Apple announces record iPhone sales"
+    assert data["sources"][0]["correlation_score"] == 0.92
+    assert data["sources"][0]["correlation_tier"] == "high"
+
+
+def test_chat_default_date_range(client, sample_symbol, db_session):
+    """Test default date range is last 365 days when filters omitted."""
+    from app.models import PriceMovement
+
+    today = date(2024, 6, 15)
+    recent = PriceMovement(
+        symbol="AAPL",
+        date=today - timedelta(days=30),
+        pct_change=Decimal("5.0"),
+        direction="up",
+        is_major=True,
+        prev_close=Decimal("100"),
+        close=Decimal("105"),
+    )
+    old = PriceMovement(
+        symbol="AAPL",
+        date=today - timedelta(days=400),
+        pct_change=Decimal("7.0"),
+        direction="up",
+        is_major=True,
+        prev_close=Decimal("100"),
+        close=Decimal("107"),
+    )
+    db_session.add_all([recent, old])
+    db_session.commit()
+
+    with patch("app.services.chat.get_settings") as mock_settings, patch(
+        "app.services.chat.date"
+    ) as mock_date:
+        mock_settings.return_value.openai_api_key = ""
+        mock_date.today.return_value = today
+        mock_date.side_effect = lambda *args, **kwargs: date(*args, **kwargs)
+        response = client.post(
+            "/api/v1/chat",
+            json={"ticker": "AAPL", "message": "What happened?"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "5.0" in data["response"] or "+5.00%" in data["response"]
+    assert "7.0" not in data["response"]
 
 
 def test_chat_llm_error_fallback(client, sample_symbol, sample_company_profile, sample_movement):
