@@ -70,35 +70,47 @@ Interactive API docs are available when the server is running:
 
 Use Swagger to try requests, inspect request/response schemas, and view example payloads.
 
-## Quick Start
+## Bootstrap
+
+From scratch — get the API running and load data before using [Key Endpoints](#key-endpoints):
 
 ```bash
 # 1. Clone and configure
+git clone https://github.com/lbayas/stock-news-app.git
+cd stock-news-app
 cp .env.example .env
-# Edit .env with your API keys
+# Set MASSIVE_API_KEY and OPENAI_API_KEY in .env
 
-# 2. Start services
-docker compose up -d
+# 2. Start services (Postgres + API; runs Alembic migrations automatically)
+docker compose up -d --build
 
-# 3. Sync popular symbols
+# 3. Verify the API is up
+curl http://localhost:8000/health
+
+# 4. Sync popular symbols from MASSIVE
 curl -X POST http://localhost:8000/api/v1/symbols/sync
 
-# 4. Refresh a ticker (fetches data + scores events)
+# 5. Refresh a ticker — async; returns a job_id
 curl -X POST http://localhost:8000/api/v1/symbols/META/refresh
+# → {"job_id":"...", "status":"pending", ...}
 
-# 5. Check job status
+# 6. Poll job status until status is "completed" (typically 20–60 seconds)
 curl http://localhost:8000/api/v1/jobs/{job_id}
 
-# 6. Get analysis (see Key Endpoints above)
+# 7. Get analysis
 curl "http://localhost:8000/api/v1/tickers/META/analysis?start_date=2026-06-01&end_date=2026-06-11"
 
-# 7. Ask questions via chat (see Key Endpoints above)
+# 8. Ask questions via chat
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{"ticker": "META", "message": "Why did the stock drop recently?"}'
 ```
 
 Open http://localhost:8000/docs to explore all endpoints interactively.
+
+> **Note:** Refresh is async — analysis and chat return empty or unhelpful results until the job in step 6 completes.
+>
+> **Port conflict:** If `docker compose up` fails because port 5432 is in use, stop the other Postgres instance or change the host port mapping in `docker-compose.yml`.
 
 ## Requirements
 
@@ -229,11 +241,11 @@ app/
 ## Development
 
 ```bash
-# Run tests
-docker exec menton-api-1 python -m pytest tests/ -v
+# Run tests (inside the api container)
+docker compose exec api python -m pytest tests/ -v
 
 # Run with coverage
-docker exec menton-api-1 python -m pytest tests/ --cov=app --cov-report=term-missing
+docker compose exec api python -m pytest tests/ --cov=app --cov-report=term-missing
 
 # View logs
 docker compose logs -f api
