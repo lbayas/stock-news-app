@@ -13,6 +13,63 @@ For any stock ticker, Menton:
 5. **Creates attributions** linking news events to price movements
 6. **Exposes findings** via REST API and natural language chat
 
+## Key Endpoints
+
+These are the two primary interfaces for consuming Menton data. Run a refresh first (`POST /api/v1/symbols/{ticker}/refresh`) so price, news, and correlation data is available.
+
+### 1. Stock + news analysis
+
+**`GET /api/v1/tickers/{ticker}/analysis`**
+
+Returns major price movements for a ticker with correlated news explanations grouped as **primary**, **supporting**, and **indirect**.
+
+| Filter | Description |
+|--------|-------------|
+| `start_date` / `end_date` | Date range (default: last 7 days) |
+| `min_move_pct` | Minimum % change to include (default: `2.0`) |
+| `direction` | `up` or `down` |
+| `min_correlation_score` | Minimum event correlation (0.0–1.0) |
+| `correlation_tier` | `high`, `medium`, or `low` |
+| `include_prices` | Include period price summary (`true`/`false`) |
+
+```bash
+curl "http://localhost:8000/api/v1/tickers/META/analysis?start_date=2026-06-01&end_date=2026-06-11&include_prices=true"
+```
+
+**Swagger:** [Analysis endpoint](http://localhost:8000/docs#/analysis/get_analysis_api_v1_tickers__ticker__analysis_get)
+
+### 2. Chat
+
+**`POST /api/v1/chat`**
+
+Ask natural language questions about a ticker's movements and the news that may have caused them. Responses are grounded in stored data and include source citations with correlation scores.
+
+| Field | Description |
+|-------|-------------|
+| `ticker` | Stock symbol (required) |
+| `message` | Your question (required) |
+| `filters.start_date` / `filters.end_date` | Optional date range (default: last 365 days) |
+
+```bash
+curl -X POST http://localhost:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"ticker": "META", "message": "Why did the stock drop recently?"}'
+```
+
+**Swagger:** [Chat endpoint](http://localhost:8000/docs#/chat/chat_api_v1_chat_post)
+
+## API Documentation (Swagger)
+
+Interactive API docs are available when the server is running:
+
+| UI | URL |
+|----|-----|
+| **Swagger UI** | http://localhost:8000/docs |
+| **ReDoc** | http://localhost:8000/redoc |
+| **OpenAPI JSON** | http://localhost:8000/openapi.json |
+
+Use Swagger to try requests, inspect request/response schemas, and view example payloads.
+
 ## Quick Start
 
 ```bash
@@ -32,16 +89,16 @@ curl -X POST http://localhost:8000/api/v1/symbols/META/refresh
 # 5. Check job status
 curl http://localhost:8000/api/v1/jobs/{job_id}
 
-# 6. Get analysis
-curl http://localhost:8000/api/v1/tickers/META/analysis
+# 6. Get analysis (see Key Endpoints above)
+curl "http://localhost:8000/api/v1/tickers/META/analysis?start_date=2026-06-01&end_date=2026-06-11"
 
-# 7. Ask questions
+# 7. Ask questions via chat (see Key Endpoints above)
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{"ticker": "META", "message": "Why did the stock drop recently?"}'
 ```
 
-API docs available at http://localhost:8000/docs
+Open http://localhost:8000/docs to explore all endpoints interactively.
 
 ## Requirements
 
@@ -187,6 +244,8 @@ docker compose down -v && docker compose up -d
 
 ## API Endpoints
 
+See **[Key Endpoints](#key-endpoints)** for the primary analysis and chat APIs. Full reference:
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/symbols` | List tracked symbols |
@@ -194,8 +253,8 @@ docker compose down -v && docker compose up -d
 | POST | `/api/v1/symbols/{ticker}/refresh` | Add & refresh a symbol |
 | GET | `/api/v1/jobs/{job_id}` | Get job status |
 | GET | `/api/v1/jobs` | List recent jobs |
-| GET | `/api/v1/tickers/{ticker}/analysis` | Get movement analysis |
-| POST | `/api/v1/chat` | Ask about stock movements |
+| **GET** | **`/api/v1/tickers/{ticker}/analysis`** | **Get movements + news explanations** |
+| **POST** | **`/api/v1/chat`** | **Ask about stock movements** |
 | GET | `/health` | Health check |
 
 ## Performance
