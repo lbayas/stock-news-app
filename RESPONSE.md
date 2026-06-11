@@ -12,6 +12,8 @@ For a proof of concept that is functional and implements the described use case 
 
 It would be nice to confirm some of these assumptions I made to make sure it aligns with what stakeholders want need so that I am designing the system to cater to stakeholder expectations. if they wanted a more production grade system, I would have opted for celery + redis, given this is primarily reads maybe pre-compute and cache symbols in redis so most reads hit cache and write from background workers continue to update database with latest data. There is no resiliency in the job system which is another reason to use celery + redis but that adds more tooling/infra.
 
+If we had multiple news sources, would have to find a way to de-dupe news (for same news event). This was not done here as we only had one provider (MASSIVE)
+
 ### Did you get stuck anywhere? How’d you get unstuck?
 
 I didn't get stuck anywhere per-say, it was a straight forward assignment IMHO and actually fun to do. I guess the only thing was just funding my OpenAI account with $10 to test everything. Actually one thing I did struggle with is the scale of the solution but opted to really try to scope this down as much as possible to top symbols. I also struggled with how async I wanted everything to be verse sync (slower) to have a good experience for API consumer.
