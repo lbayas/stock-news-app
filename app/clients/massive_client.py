@@ -1,8 +1,5 @@
 """
 MASSIVE (Polygon.io) client for fetching financial news.
-
-Polygon provides higher quality financial news with better historical coverage
-than NewsAPI for stock-specific queries.
 """
 import httpx
 from datetime import datetime, date, timedelta

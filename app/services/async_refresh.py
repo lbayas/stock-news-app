@@ -7,16 +7,14 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import Job, CompanyProfile
+from app.models import Job
 from app.clients import (
     fetch_price_history_polygon,
     fetch_company_profile_polygon,
-    fetch_news_for_movements,
     fetch_news_for_movements_massive,
 )
 from app.services.movement import detect_major_movements
 from app.services.correlation import score_events_for_symbol, create_movement_attributions
-from app.config import get_settings
 
 
 def create_refresh_job(db: Session, ticker: str) -> Job:
@@ -55,7 +53,6 @@ def run_refresh_async(job_id: str, ticker: str):
         job.progress = {"step": "starting", "message": "Starting refresh pipeline"}
         db.commit()
 
-        settings = get_settings()
         results = {
             "ticker": ticker,
             "profile_updated": False,
@@ -90,22 +87,12 @@ def run_refresh_async(job_id: str, ticker: str):
 
         # Step 4: News fetching
         _update_progress(db, job, "news", "Fetching news articles...")
-        profile = db.query(CompanyProfile).filter(CompanyProfile.symbol == ticker).first()
-        company_name = profile.name if profile else ticker
 
         total_news = 0
-        # Primary: MASSIVE (Polygon) news
         massive_result = fetch_news_for_movements_massive(db, ticker)
         total_news += massive_result.get("events_fetched", 0)
         if "error" in massive_result:
             results["errors"].append(f"MASSIVE: {massive_result['error']}")
-
-        # Optional: NewsAPI as secondary source
-        if settings.news_api_key:
-            news_result = fetch_news_for_movements(db, ticker, company_name)
-            total_news += news_result.get("events_fetched", 0)
-            if "error" in news_result:
-                results["errors"].append(f"NewsAPI: {news_result['error']}")
 
         results["news_fetched"] = total_news
 

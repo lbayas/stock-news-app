@@ -34,10 +34,10 @@ def list_symbols(db: Session = Depends(get_db)):
     description="""
 Adds a symbol (if new) and triggers a full data refresh pipeline:
 
-1. **Fetch company profile** from Polygon/yfinance
+1. **Fetch company profile** from MASSIVE (Polygon)
 2. **Fetch historical prices** for the configured lookback period
 3. **Detect major movements** (days with >= threshold % change)
-4. **Fetch news** around movement windows from Polygon/NewsAPI
+4. **Fetch news** around movement windows from MASSIVE (Polygon)
 5. **LLM score events** for correlation using OpenAI
 6. **Create attributions** linking events to movements
 

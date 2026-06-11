@@ -159,8 +159,6 @@ class TestRunRefreshAsync:
                 mock_q = MagicMock()
                 if model == Job:
                     mock_q.filter.return_value.first.return_value = job
-                elif model == CompanyProfile:
-                    mock_q.filter.return_value.first.return_value = profile
                 return mock_q
 
             mock_db.query.side_effect = mock_query
@@ -168,31 +166,25 @@ class TestRunRefreshAsync:
             mock_db.close = MagicMock()
             mock_session_local.return_value = mock_db
 
-            with patch("app.services.async_refresh.get_settings") as mock_settings:
-                settings = MagicMock()
-                settings.massive_api_key = "test-key"
-                settings.news_api_key = ""
-                mock_settings.return_value = settings
+            with patch("app.services.async_refresh.fetch_company_profile_polygon") as mock_profile:
+                mock_profile.return_value = {"updated": True}
 
-                with patch("app.services.async_refresh.fetch_company_profile_polygon") as mock_profile:
-                    mock_profile.return_value = {"updated": True}
+                with patch("app.services.async_refresh.fetch_price_history_polygon") as mock_prices:
+                    mock_prices.return_value = {"bars_added": 100}
 
-                    with patch("app.services.async_refresh.fetch_price_history_polygon") as mock_prices:
-                        mock_prices.return_value = {"bars_added": 100}
+                    with patch("app.services.async_refresh.detect_major_movements") as mock_movements:
+                        mock_movements.return_value = {"movements_detected": 10}
 
-                        with patch("app.services.async_refresh.detect_major_movements") as mock_movements:
-                            mock_movements.return_value = {"movements_detected": 10}
+                        with patch("app.services.async_refresh.fetch_news_for_movements_massive") as mock_news:
+                            mock_news.return_value = {"events_fetched": 50}
 
-                            with patch("app.services.async_refresh.fetch_news_for_movements_massive") as mock_news:
-                                mock_news.return_value = {"events_fetched": 50}
+                            with patch("app.services.async_refresh.score_events_for_symbol") as mock_score:
+                                mock_score.return_value = {"events_scored": 50}
 
-                                with patch("app.services.async_refresh.score_events_for_symbol") as mock_score:
-                                    mock_score.return_value = {"events_scored": 50}
+                                with patch("app.services.async_refresh.create_movement_attributions") as mock_attr:
+                                    mock_attr.return_value = {"attributions_created": 30}
 
-                                    with patch("app.services.async_refresh.create_movement_attributions") as mock_attr:
-                                        mock_attr.return_value = {"attributions_created": 30}
-
-                                        run_refresh_async(job_id, "TEST")
+                                    run_refresh_async(job_id, "TEST")
 
         # Verify job was updated
         assert job.status == "completed"
@@ -211,13 +203,13 @@ class TestRunRefreshAsync:
             mock_db.close = MagicMock()
             mock_session_local.return_value = mock_db
 
-            with patch("app.services.async_refresh.get_settings") as mock_settings:
-                mock_settings.side_effect = Exception("Settings error")
+            with patch("app.services.async_refresh.fetch_company_profile_polygon") as mock_profile:
+                mock_profile.side_effect = Exception("Profile fetch error")
 
                 run_refresh_async(job_id, "TEST")
 
         assert job.status == "failed"
-        assert "Settings error" in job.error
+        assert "Profile fetch error" in job.error
 
 
 class TestStartRefreshJob:

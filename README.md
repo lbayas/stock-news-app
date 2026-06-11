@@ -8,7 +8,7 @@ For any stock ticker, Menton:
 
 1. **Fetches historical prices** from MASSIVE (Polygon.io)
 2. **Detects major movements** (days with ≥2% price change)
-3. **Fetches news** around those movement dates
+3. **Fetches news** around those movement dates from MASSIVE (Polygon)
 4. **Scores relevance** using OpenAI (0.0-1.0 correlation score)
 5. **Creates attributions** linking news events to price movements
 6. **Exposes findings** via REST API and natural language chat
@@ -118,9 +118,10 @@ Open http://localhost:8000/docs to explore all endpoints interactively.
 
 | Key | Required | Source |
 |-----|----------|--------|
-| `MASSIVE_API_KEY` | Yes | [Polygon.io](https://polygon.io) - prices, company data, news |
-| `OPENAI_API_KEY` | Yes | [OpenAI](https://platform.openai.com) - correlation scoring, chat |
-| `NEWS_API_KEY` | Optional | [NewsAPI](https://newsapi.org) - additional news source |
+| `MASSIVE_API_KEY` | Yes | [Polygon.io](https://polygon.io) — prices, company profile, and news |
+| `OPENAI_API_KEY` | Yes | [OpenAI](https://platform.openai.com) — correlation scoring and chat |
+
+News is fetched from MASSIVE (Polygon) only.
 
 ### Infrastructure
 
@@ -137,9 +138,6 @@ DATABASE_URL=postgresql://menton:menton@db:5432/menton
 # Required
 MASSIVE_API_KEY=your_polygon_api_key
 OPENAI_API_KEY=your_openai_api_key
-
-# Optional
-NEWS_API_KEY=your_newsapi_key
 
 # Tuning
 MAJOR_MOVE_THRESHOLD=2.0      # Minimum % change to flag as major
@@ -167,7 +165,7 @@ OPENAI_MAX_WORKERS=5          # Concurrent API calls for scoring
 │  1. Fetch company profile (MASSIVE)                             │
 │  2. Fetch price history (MASSIVE)                               │
 │  3. Detect major movements (≥2% days)                           │
-│  4. Fetch news around movement dates (MASSIVE + NewsAPI)        │
+│  4. Fetch news around movement dates (MASSIVE)                    │
 │  5. Score events with OpenAI (parallel batches)                 │
 │  6. Create movement-event attributions                          │
 └─────────────────────────────────────────────────────────────────┘
@@ -224,8 +222,7 @@ app/
 │   └── health.py        # Health checks
 ├── clients/             # External API clients
 │   ├── polygon_prices.py   # MASSIVE price/profile data
-│   ├── massive_client.py   # MASSIVE news
-│   └── news_client.py      # NewsAPI (optional secondary source)
+│   └── massive_client.py   # MASSIVE news
 ├── services/            # Business logic
 │   ├── async_refresh.py    # Async job pipeline
 │   ├── correlation.py      # OpenAI scoring (parallel)
@@ -279,19 +276,7 @@ See **[Key Endpoints](#key-endpoints)** for the primary analysis and chat APIs. 
 
 ### Adding a News Source
 
-News clients implement the `NewsClient` protocol in `app/clients/base.py`:
-
-```python
-from app.clients.base import NewsClient
-
-class MyNewsClient:
-    def fetch_news_for_movements(self, db: Session, ticker: str, **kwargs) -> dict:
-        # Fetch news around major movement dates
-        # Store events using NewsEvent model
-        return {"events_fetched": count}
-```
-
-Then register in `app/services/async_refresh.py`.
+The refresh pipeline uses MASSIVE for news. To add another provider, implement the `NewsClient` protocol in `app/clients/base.py` and register it in `app/services/async_refresh.py`.
 
 ## License
 

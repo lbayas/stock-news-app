@@ -1,7 +1,5 @@
 """
 Polygon.io client for fetching stock price data.
-
-More reliable than yfinance, especially from containerized environments.
 """
 import httpx
 from datetime import datetime, date, timedelta
